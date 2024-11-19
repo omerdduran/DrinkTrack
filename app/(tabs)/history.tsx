@@ -11,8 +11,11 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import React from 'react';
 import { BarChart } from "react-native-chart-kit";
 import { RefreshControl } from 'react-native';
+import { useLanguage } from '../../hooks/useLanguage';
+import i18n from '../../services/i18n';
 
 export default function HistoryScreen() {
+  useLanguage();
   const [records, setRecords] = useState<DayRecord[]>([]);
   const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
   const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
@@ -46,20 +49,20 @@ export default function HistoryScreen() {
 
   const handleDeleteRecord = async (dayRecord: DayRecord, record: WaterRecord) => {
     Alert.alert(
-      'Delete Record',
-      `Are you sure you want to delete ${record.amount}ml record?`,
+      i18n.t('deleteRecord'),
+      i18n.t('deleteRecordConfirm', { amount: record.amount }),
       [
         {
-          text: 'Cancel',
+          text: i18n.t('cancel'),
           style: 'cancel',
         },
         {
-          text: 'Delete',
+          text: i18n.t('delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               await WaterStorage.removeRecord(record.id, dayRecord.date);
-              loadRecords(); // Reload history after deletion
+              loadRecords();
               EventEmitter.emit('waterRecordChanged');
             } catch (error) {
               console.error('Error deleting record:', error);
@@ -168,6 +171,21 @@ export default function HistoryScreen() {
 
   const filteredRecords = useMemo(() => getFilteredRecords(), [records, selectedPeriod]);
 
+  const formatDate = (date: string) => {
+    try {
+      const dateObj = new Date(date);
+      return dateObj.toLocaleDateString(i18n.locale, {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return date;
+    }
+  };
+
   return (
     <ThemedView style={styles.container}>
       <ScrollView 
@@ -194,7 +212,7 @@ export default function HistoryScreen() {
                 styles.periodButtonText,
                 selectedPeriod === period && styles.periodButtonTextActive
               ]}>
-                {period.charAt(0).toUpperCase() + period.slice(1)}
+                {i18n.t(period)}
               </ThemedText>
             </TouchableOpacity>
           ))}
@@ -202,27 +220,34 @@ export default function HistoryScreen() {
 
         <ThemedView style={styles.summaryCard}>
           <ThemedText style={styles.summaryTitle}>
-            {selectedPeriod === 'today' ? "Today's Summary" : 
-             selectedPeriod === 'week' ? "This Week's Summary" :
-             selectedPeriod === 'month' ? "This Month's Summary" : "Overall Summary"}
+            {i18n.t(
+              selectedPeriod === 'today' ? 'todaySummary' :
+              selectedPeriod === 'week' ? 'weekSummary' :
+              selectedPeriod === 'month' ? 'monthSummary' : 
+              'overallSummary'
+            )}
           </ThemedText>
           <View style={styles.summaryContent}>
             <View style={styles.summaryItem}>
               <ThemedText style={styles.summaryValue}>
                 {filteredRecords.length > 0 
-                  ? `${filteredRecords.reduce((sum, day) => sum + day.totalIntake, 0)}ml`
-                  : '0ml'}
+                  ? i18n.t('milliliters', { amount: filteredRecords.reduce((sum, day) => sum + day.totalIntake, 0) })
+                  : i18n.t('milliliters', { amount: 0 })}
               </ThemedText>
-              <ThemedText style={styles.summaryLabel}>Total Intake</ThemedText>
+              <ThemedText style={styles.summaryLabel}>{i18n.t('totalIntake')}</ThemedText>
             </View>
             <View style={styles.summaryItem}>
               <ThemedText style={styles.summaryValue}>
                 {filteredRecords.length > 0 
-                  ? `${Math.round(filteredRecords.reduce((sum, day) => sum + day.totalIntake, 0) / 
-                      filteredRecords.length)}ml`
-                  : '0ml'}
+                  ? i18n.t('milliliters', { 
+                      amount: Math.round(
+                        filteredRecords.reduce((sum, day) => sum + day.totalIntake, 0) / 
+                        filteredRecords.length
+                      )
+                    })
+                  : i18n.t('milliliters', { amount: 0 })}
               </ThemedText>
-              <ThemedText style={styles.summaryLabel}>Daily Average</ThemedText>
+              <ThemedText style={styles.summaryLabel}>{i18n.t('dailyAverage')}</ThemedText>
             </View>
           </View>
         </ThemedView>
@@ -233,14 +258,10 @@ export default function HistoryScreen() {
               <ThemedView style={styles.dayCard}>
                 <View style={styles.dateContainer}>
                   <ThemedText style={styles.dateTitle}>
-                    {new Date(dayRecord.date).toLocaleDateString(undefined, {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
+                    {formatDate(dayRecord.date)}
                   </ThemedText>
                   <ThemedText style={[styles.percentage, { color: getProgressColor(dayRecord.totalIntake / dayRecord.goal) }]}>
-                    {Math.round((dayRecord.totalIntake / dayRecord.goal) * 100)}%
+                    {`${Math.round((dayRecord.totalIntake / dayRecord.goal) * 100)}%`}
                   </ThemedText>
                 </View>
 
@@ -257,7 +278,10 @@ export default function HistoryScreen() {
                     />
                   </ThemedView>
                   <ThemedText style={styles.progressText}>
-                    {dayRecord.totalIntake}ml / {dayRecord.goal}ml
+                    {i18n.t('progressText', { 
+                      current: dayRecord.totalIntake,
+                      goal: dayRecord.goal 
+                    })}
                   </ThemedText>
                 </View>
 
@@ -269,7 +293,9 @@ export default function HistoryScreen() {
                       onPress={() => handleDeleteRecord(dayRecord, record)}>
                       <View style={styles.recordInfo}>
                         <MaterialCommunityIcons name="water" size={20} color="rgba(0,122,255,0.8)" />
-                        <ThemedText style={styles.recordAmount}>+{record.amount}ml</ThemedText>
+                        <ThemedText style={styles.recordAmount}>
+                          {i18n.t('addedAmount', { amount: record.amount })}
+                        </ThemedText>
                         <ThemedText style={styles.recordTime}>{formatTime(record.timestamp)}</ThemedText>
                       </View>
                       <Ionicons name="trash-outline" size={20} color="rgba(255,59,48,0.8)" />
@@ -283,10 +309,10 @@ export default function HistoryScreen() {
           <ThemedView style={styles.emptyState}>
             <MaterialCommunityIcons name="water-off" size={48} color="rgba(0,122,255,0.8)" />
             <ThemedText style={styles.emptyStateText}>
-              No records found for this period
+              {i18n.t('noRecordsFound')}
             </ThemedText>
             <ThemedText style={styles.emptyStateSubtext}>
-              Start tracking your water intake to see your progress!
+              {i18n.t('startTracking')}
             </ThemedText>
           </ThemedView>
         )}

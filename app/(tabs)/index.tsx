@@ -9,6 +9,8 @@ import { ThemedView } from '../../components/ThemedView';
 import WaterProgress from '../../components/WaterProgress';
 import { WaterStorage, DayRecord } from '../../services/waterStorage';
 import { EventEmitter } from '../../services/eventEmitter';
+import i18n from '../../services/i18n';
+import { LanguageService } from '@/services/languageService';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -18,6 +20,8 @@ export default function HomeScreen() {
   const [todayRecords, setTodayRecords] = useState<DayRecord | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
+  const [, setRefreshKey] = useState(0);
+  const [, forceUpdate] = useState({});
 
   useEffect(() => {
     loadTodayData();
@@ -60,6 +64,19 @@ export default function HomeScreen() {
     return () => {
       EventEmitter.off('dataImported', handleDataImported);
       EventEmitter.off('settingsChanged', handleSettingsChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    LanguageService.initialize();
+    
+    const handleLanguageChange = () => {
+      forceUpdate({});
+    };
+    
+    EventEmitter.on('languageChanged', handleLanguageChange);
+    return () => {
+      EventEmitter.off('languageChanged', handleLanguageChange);
     };
   }, []);
 
@@ -113,32 +130,39 @@ export default function HomeScreen() {
 
   const handleCustomAmount = () => {
     Alert.prompt(
-      'Add Custom Amount',
-      'Enter amount in milliliters (ml)',
+      i18n.t('customAmount'),
+      i18n.t('enterAmount'),
       [
         {
-          text: 'Cancel',
+          text: i18n.t('cancel'),
           style: 'cancel'
         },
         {
-          text: 'Add',
+          text: i18n.t('add'),
           onPress: (amount) => {
             const numAmount = parseInt(amount || '0', 10);
             if (isNaN(numAmount) || numAmount <= 0) {
-              Alert.alert('Invalid Amount', 'Please enter a valid number greater than 0');
+              Alert.alert(
+                i18n.t('invalidAmount'),
+                i18n.t('invalidAmountMessage')
+              );
               return;
             }
             if (numAmount > 2000) {
-              Alert.alert('Warning', 'That seems like a lot! Are you sure?', [
-                {
-                  text: 'Cancel',
-                  style: 'cancel'
-                },
-                {
-                  text: 'Yes, Add',
-                  onPress: () => addWater(numAmount)
-                }
-              ]);
+              Alert.alert(
+                i18n.t('warning'),
+                i18n.t('tooMuchWater'),
+                [
+                  {
+                    text: i18n.t('cancel'),
+                    style: 'cancel'
+                  },
+                  {
+                    text: i18n.t('yes'),
+                    onPress: () => addWater(numAmount)
+                  }
+                ]
+              );
               return;
             }
             addWater(numAmount);
@@ -171,12 +195,14 @@ export default function HomeScreen() {
             {waterIntake} / {dailyGoal} ml
           </ThemedText>
           <ThemedText style={styles.percentageText}>
-            {Math.round((waterIntake / dailyGoal) * 100)}% of daily goal
+            {Math.round((waterIntake / dailyGoal) * 100)}% {i18n.t('dailyGoal')}
           </ThemedText>
         </View>
 
         <View style={styles.quickAddSection}>
-          <ThemedText style={styles.sectionTitle}>Add Water</ThemedText>
+          <ThemedText style={styles.sectionTitle}>
+            {i18n.t('addWater')}
+          </ThemedText>
           <View style={styles.buttonsGrid}>
             {[100, 200, 300, 400].map((amount) => (
               <TouchableOpacity
@@ -212,7 +238,9 @@ export default function HomeScreen() {
             onPress={handleCustomAmount}
           >
             <MaterialCommunityIcons name="plus" size={24} color="#FFFFFF" />
-            <ThemedText style={styles.customAddText}>Custom Amount</ThemedText>
+            <ThemedText style={styles.customAddText}>
+              {i18n.t('customAmount')}
+            </ThemedText>
           </TouchableOpacity>
         </View>
       </View>

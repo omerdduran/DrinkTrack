@@ -11,20 +11,28 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as StoreReview from 'expo-store-review';
 import { useTheme } from '../../contexts/ThemeContext';
+import { LanguageService } from '../../services/languageService';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { SupportedLanguages } from '../../translations/types';
+import i18n from '../../services/i18n';
+import { useLanguageContext } from '../../contexts/LanguageContext';
 
 const eventEmitter = new EventEmitter();
 
 type ColorScheme = 'light' | 'dark' | 'system';
 
 export default function SettingsScreen() {
+  const { setLanguage } = useLanguageContext();
   const [dailyGoal, setDailyGoal] = useState(2000);
   const [notifications, setNotifications] = useState(false);
   const [reminderInterval, setReminderInterval] = useState(2);
   const { colorScheme, setColorScheme, currentTheme } = useTheme();
   const systemColorScheme = useColorScheme();
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguages>('en');
 
   useEffect(() => {
     loadSettings();
+    setSelectedLanguage(LanguageService.getLanguage());
   }, []);
 
   const loadSettings = async () => {
@@ -41,15 +49,15 @@ export default function SettingsScreen() {
 
   const handleDailyGoalChange = async () => {
     Alert.prompt(
-      'Set Daily Goal',
-      'Enter your daily water intake goal in milliliters (ml)',
+      i18n.t('setDailyGoal'),
+      i18n.t('enterDailyGoal'),
       [
         {
-          text: 'Cancel',
+          text: i18n.t('cancel'),
           style: 'cancel',
         },
         {
-          text: 'Save',
+          text: i18n.t('save'),
           onPress: async (value) => {
             if (value) {
               const newGoal = parseInt(value);
@@ -77,8 +85,8 @@ export default function SettingsScreen() {
         const { status } = await Notifications.requestPermissionsAsync();
         if (status !== 'granted') {
           Alert.alert(
-            'Permission Required',
-            'Please enable notifications in your device settings to receive reminders.'
+            i18n.t('permissionRequired'),
+            i18n.t('enableNotificationsMessage'),
           );
           return;
         }
@@ -99,15 +107,15 @@ export default function SettingsScreen() {
 
   const handleIntervalChange = async () => {
     Alert.prompt(
-      'Set Reminder Interval',
-      'Enter reminder interval in hours (1-12)',
+      i18n.t('setReminderInterval'),
+      i18n.t('enterReminderInterval'),
       [
         {
-          text: 'Cancel',
+          text: i18n.t('cancel'),
           style: 'cancel',
         },
         {
-          text: 'Save',
+          text: i18n.t('save'),
           onPress: async (value) => {
             if (value) {
               const newInterval = parseInt(value);
@@ -281,15 +289,15 @@ export default function SettingsScreen() {
 
   const handleResetData = () => {
     Alert.alert(
-      'Reset All Data',
-      'Are you sure you want to reset all data? This action cannot be undone.',
+      i18n.t('resetConfirmation'),
+      i18n.t('resetConfirmationMessage'),
       [
         {
-          text: 'Cancel',
+          text: i18n.t('cancel'),
           style: 'cancel'
         },
         {
-          text: 'Reset',
+          text: i18n.t('reset'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -316,20 +324,25 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleLanguageChange = async (languageCode: SupportedLanguages) => {
+    await setLanguage(languageCode);
+    setSelectedLanguage(languageCode);
+  };
+
   return (
     <ScrollView style={{
       backgroundColor: currentTheme === 'dark' ? '#000000' : '#FFFFFF',
     }}>
       <ThemedView style={styles.container}>
-        <ThemedText style={styles.headerTitle}>Settings</ThemedText>
+        <ThemedText style={styles.headerTitle}>{i18n.t('settings')}</ThemedText>
 
         <ThemedView style={[styles.section, {
           backgroundColor: currentTheme === 'dark' ? '#1C1C1E' : '#F2F2F7',
         }]}>
-          <ThemedText style={styles.sectionTitle}>Daily Goal</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{i18n.t('dailyGoal')}</ThemedText>
           <TouchableOpacity onPress={handleDailyGoalChange}>
             <ThemedView style={styles.settingRow}>
-              <ThemedText>Target Water Intake</ThemedText>
+              <ThemedText>{i18n.t('targetWaterIntake')}</ThemedText>
               <ThemedText style={styles.value}>{dailyGoal}ml</ThemedText>
             </ThemedView>
           </TouchableOpacity>
@@ -338,9 +351,9 @@ export default function SettingsScreen() {
         <ThemedView style={[styles.section, {
           backgroundColor: currentTheme === 'dark' ? '#1C1C1E' : '#F2F2F7',
         }]}>
-          <ThemedText style={styles.sectionTitle}>Notifications</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{i18n.t('notifications')}</ThemedText>
           <ThemedView style={styles.settingRow}>
-            <ThemedText>Enable Reminders</ThemedText>
+            <ThemedText>{i18n.t('enableReminders')}</ThemedText>
             <Switch
               value={notifications}
               onValueChange={handleNotificationToggle}
@@ -357,7 +370,7 @@ export default function SettingsScreen() {
           {notifications && (
             <TouchableOpacity onPress={handleIntervalChange}>
               <ThemedView style={styles.settingRow}>
-                <ThemedText>Reminder Interval</ThemedText>
+                <ThemedText>{i18n.t('reminderInterval')}</ThemedText>
                 <ThemedText style={styles.value}>{reminderInterval}h</ThemedText>
               </ThemedView>
             </TouchableOpacity>
@@ -367,22 +380,22 @@ export default function SettingsScreen() {
         <ThemedView style={[styles.section, {
           backgroundColor: currentTheme === 'dark' ? '#1C1C1E' : '#F2F2F7',
         }]}>
-          <ThemedText style={styles.sectionTitle}>Appearance</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{i18n.t('appearance')}</ThemedText>
           <TouchableOpacity onPress={() => handleColorSchemeChange('light')}>
             <ThemedView style={styles.settingRow}>
-              <ThemedText>Light Mode</ThemedText>
+              <ThemedText>{i18n.t('lightMode')}</ThemedText>
               {colorScheme === 'light' && <ThemedText style={styles.value}>✓</ThemedText>}
             </ThemedView>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => handleColorSchemeChange('dark')}>
             <ThemedView style={styles.settingRow}>
-              <ThemedText>Dark Mode</ThemedText>
+              <ThemedText>{i18n.t('darkMode')}</ThemedText>
               {colorScheme === 'dark' && <ThemedText style={styles.value}>✓</ThemedText>}
             </ThemedView>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => handleColorSchemeChange('system')}>
             <ThemedView style={styles.settingRow}>
-              <ThemedText>Use System Setting</ThemedText>
+              <ThemedText>{i18n.t('useSystemSetting')}</ThemedText>
               {colorScheme === 'system' && <ThemedText style={styles.value}>✓</ThemedText>}
             </ThemedView>
           </TouchableOpacity>
@@ -391,16 +404,16 @@ export default function SettingsScreen() {
         <ThemedView style={[styles.section, {
           backgroundColor: currentTheme === 'dark' ? '#1C1C1E' : '#F2F2F7',
         }]}>
-          <ThemedText style={styles.sectionTitle}>Data Management</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{i18n.t('dataManagement')}</ThemedText>
           <TouchableOpacity onPress={handleExportData}>
             <ThemedView style={styles.settingRow}>
-              <ThemedText>Export Data</ThemedText>
+              <ThemedText>{i18n.t('exportData')}</ThemedText>
               <ThemedText style={styles.value}>→</ThemedText>
             </ThemedView>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleImportData}>
             <ThemedView style={styles.settingRow}>
-              <ThemedText>Import Data</ThemedText>
+              <ThemedText>{i18n.t('importData')}</ThemedText>
               <ThemedText style={styles.value}>→</ThemedText>
             </ThemedView>
           </TouchableOpacity>
@@ -409,16 +422,16 @@ export default function SettingsScreen() {
         <ThemedView style={[styles.section, {
           backgroundColor: currentTheme === 'dark' ? '#1C1C1E' : '#F2F2F7',
         }]}>
-          <ThemedText style={styles.sectionTitle}>Support</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{i18n.t('support')}</ThemedText>
           <TouchableOpacity onPress={handleRateApp}>
             <ThemedView style={styles.settingRow}>
-              <ThemedText>Rate Our App</ThemedText>
+              <ThemedText>{i18n.t('rateOurApp')}</ThemedText>
               <ThemedText style={styles.value}>⭐️</ThemedText>
             </ThemedView>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleContactSupport}>
             <ThemedView style={styles.settingRow}>
-              <ThemedText>Contact Support</ThemedText>
+              <ThemedText>{i18n.t('contactSupport')}</ThemedText>
               <ThemedText style={styles.value}>📧</ThemedText>
             </ThemedView>
           </TouchableOpacity>
@@ -427,20 +440,42 @@ export default function SettingsScreen() {
         <ThemedView style={[styles.section, {
           backgroundColor: currentTheme === 'dark' ? '#1C1C1E' : '#F2F2F7',
         }]}>
-          <ThemedText style={styles.sectionTitle}>About</ThemedText>
-          <ThemedText style={styles.version}>DrinkTrack v1.0.0</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{i18n.t('about')}</ThemedText>
+          <ThemedText style={styles.version}>{i18n.t('appVersion', { version: '1.0.0' })}</ThemedText>
         </ThemedView>
 
         <ThemedView style={[styles.section, {
           backgroundColor: currentTheme === 'dark' ? '#1C1C1E' : '#F2F2F7',
         }]}>
-          <ThemedText style={styles.sectionTitle}>Danger Zone</ThemedText>
+          <ThemedText style={styles.sectionTitle}>{i18n.t('dangerZone')}</ThemedText>
           <TouchableOpacity onPress={handleResetData}>
             <ThemedView style={[styles.settingRow, styles.resetButton]}>
-              <ThemedText style={styles.resetText}>Reset All Data</ThemedText>
+              <ThemedText style={styles.resetText}>{i18n.t('resetAllData')}</ThemedText>
               <ThemedText style={styles.resetText}>🗑️</ThemedText>
             </ThemedView>
           </TouchableOpacity>
+        </ThemedView>
+
+        <ThemedView style={[styles.section, {
+          backgroundColor: currentTheme === 'dark' ? '#1C1C1E' : '#F2F2F7',
+        }]}>
+          <ThemedText style={styles.sectionTitle}>{i18n.t('language')}</ThemedText>
+          {LanguageService.getSupportedLanguages().map(({ code, name }) => (
+            <TouchableOpacity
+              key={code}
+              style={styles.option}
+              onPress={() => handleLanguageChange(code)}
+            >
+              <ThemedText>{name}</ThemedText>
+              {selectedLanguage === code && (
+                <MaterialCommunityIcons
+                  name="check"
+                  size={24}
+                  color={colorScheme === 'dark' ? '#409CFF' : '#007AFF'}
+                />
+              )}
+            </TouchableOpacity>
+          ))}
         </ThemedView>
       </ThemedView>
     </ScrollView>
@@ -501,5 +536,12 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     fontStyle: 'italic',
     marginTop: 8,
+  },
+  option: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    backgroundColor: 'transparent',
   },
 }); 
