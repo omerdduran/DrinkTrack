@@ -1,5 +1,5 @@
 export default {
-  addWater: 'Add Water',
+  addWater: 'Add Drink',
   customAmount: 'Custom Amount',
   dailyGoal: 'Daily goal',
   enterAmount: 'Enter amount in milliliters (ml)',
@@ -37,7 +37,7 @@ export default {
   enterDailyGoal: 'Enter your daily water intake goal in milliliters (ml)',
   save: 'Save',
   permissionRequired: 'Permission Required',
-  enableNotificationsMessage: 'Please enable notifications in your device settings to receive reminders.',
+  enableNotificationsMessage: 'Please enable notifications in your device settings to receive hydration reminders.',
   setReminderInterval: 'Set Reminder Interval',
   enterReminderInterval: 'Enter reminder interval in hours (1-12)',
   resetConfirmation: 'Reset All Data',
@@ -85,4 +85,37 @@ export default {
   averageIntake: 'Average Intake',
   maxIntake: 'Maximum Intake',
   minIntake: 'Minimum Intake',
+
+  // Beverage types
+  selectBeverage: 'Select Beverage',
+  water: 'Water',
+  tea: 'Tea',
+  coffee: 'Coffee',
+  juice: 'Juice',
+
+  customBeverages: 'Custom Beverages',
+  addBeverage: 'Add New Beverage',
+  addNewBeverage: 'Add New Beverage',
+  beverageName: 'Beverage Name',
+  selectIcon: 'Select Icon',
+  selectColor: 'Select Color',
+  beverageNameRequired: 'Please enter a beverage name',
+  errorAddingBeverage: 'Error adding beverage',
+  deleteBeverage: 'Delete Beverage',
+  deleteBeverageConfirm: 'Are you sure you want to delete {{name}}?',
+  errorDeletingBeverage: 'Error deleting beverage',
+
+  // Day reset time
+  dayResetTime: 'Day Reset Time',
+  setDayResetTime: 'Set Day Reset Time',
+  enterDayResetTime: 'Enter the time when the day should reset (00:00 - 23:59)',
+  invalidTimeFormat: 'Invalid time format. Please use HH:mm format (00:00 - 23:59)',
+
+  // Week start day
+  weekStartDay: 'Week Start Day',
+  monday: 'Monday',
+  sunday: 'Sunday',
+
+  timeToHydrate: 'Time to drink water! 💧',
+  stayHydratedMessage: 'Stay hydrated for better health!',
 }; 

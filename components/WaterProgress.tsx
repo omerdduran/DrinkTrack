@@ -1,9 +1,17 @@
-import { Animated, StyleSheet, View, Dimensions } from 'react-native';
+import { StyleSheet, View, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
+import Animated, {
+  useAnimatedProps,
+  withSpring,
+  useSharedValue,
+} from 'react-native-reanimated';
+import { useEffect } from 'react';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface WaterProgressProps {
-  progress: Animated.Value;
+  progress: { addListener: (callback: (state: { value: number }) => void) => void; removeAllListeners: () => void; };
 }
 
 export default function WaterProgress({ progress }: WaterProgressProps) {
@@ -11,17 +19,31 @@ export default function WaterProgress({ progress }: WaterProgressProps) {
   const strokeWidth = 15;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
+  
+  const progressValue = useSharedValue(0);
 
-  const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+  useEffect(() => {
+    progress.addListener(({ value }) => {
+      progressValue.value = withSpring(value, {
+        damping: 15,
+        stiffness: 100,
+      });
+    });
 
-  const animatedStrokeDashoffset = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [circumference, 0],
+    return () => {
+      progress.removeAllListeners();
+    };
+  }, []);
+
+  const animatedProps = useAnimatedProps(() => {
+    return {
+      strokeDashoffset: circumference * (1 - progressValue.value),
+    };
   });
 
   return (
     <View style={styles.container}>
-      <Animated.View style={styles.circleContainer}>
+      <View style={styles.circleContainer}>
         <Svg width={size} height={size}>
           {/* Background Circle */}
           <Circle
@@ -41,7 +63,7 @@ export default function WaterProgress({ progress }: WaterProgressProps) {
             strokeWidth={strokeWidth}
             fill="none"
             strokeDasharray={`${circumference} ${circumference}`}
-            strokeDashoffset={animatedStrokeDashoffset}
+            animatedProps={animatedProps}
             strokeLinecap="round"
           />
         </Svg>
@@ -51,7 +73,7 @@ export default function WaterProgress({ progress }: WaterProgressProps) {
           end={{ x: 1, y: 1 }}
           style={[styles.gradientOverlay, { width: size, height: size }]}
         />
-      </Animated.View>
+      </View>
     </View>
   );
 }

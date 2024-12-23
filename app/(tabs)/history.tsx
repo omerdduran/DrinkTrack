@@ -13,6 +13,7 @@ import { BarChart } from "react-native-chart-kit";
 import { RefreshControl } from 'react-native';
 import { useLanguage } from '../../hooks/useLanguage';
 import i18n from '../../services/i18n';
+import { beverages, getBeverageName } from '../../services/beverageTypes';
 
 export default function HistoryScreen() {
   useLanguage();
@@ -23,6 +24,7 @@ export default function HistoryScreen() {
   const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [selectedPeriod, setSelectedPeriod] = useState<'today' | 'week' | 'month' | 'all'>('week');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [filteredRecords, setFilteredRecords] = useState<DayRecord[]>([]);
 
   useEffect(() => {
     loadRecords();
@@ -30,13 +32,27 @@ export default function HistoryScreen() {
     const handleWaterRecordChange = () => {
       loadRecords();
     };
+
+    const handleSettingsChange = () => {
+      loadRecords();
+    };
     
     EventEmitter.on('waterRecordChanged', handleWaterRecordChange);
+    EventEmitter.on('settingsChanged', handleSettingsChange);
     
     return () => {
       EventEmitter.off('waterRecordChanged', handleWaterRecordChange);
+      EventEmitter.off('settingsChanged', handleSettingsChange);
     };
   }, []);
+
+  useEffect(() => {
+    const updateFilteredRecords = async () => {
+      const filtered = await getFilteredRecords();
+      setFilteredRecords(filtered);
+    };
+    updateFilteredRecords();
+  }, [records, selectedPeriod]);
 
   const loadRecords = async () => {
     try {
@@ -137,7 +153,7 @@ export default function HistoryScreen() {
     return hourlyData;
   };
 
-  const getFilteredRecords = () => {
+  const getFilteredRecords = async () => {
     let filtered = [...records];
     const now = new Date();
 
@@ -147,12 +163,23 @@ export default function HistoryScreen() {
           new Date(record.date).toDateString() === now.toDateString()
         );
         break;
-      case 'week':
-        const weekAgo = new Date(now.setDate(now.getDate() - 7));
+      case 'week': {
+        const settings = await WaterStorage.getSettings();
+        const weekStartDay = settings.weekStartDay || 'monday';
+        const currentDay = now.getDay();
+        const daysToSubtract = weekStartDay === 'monday' 
+          ? (currentDay === 0 ? 6 : currentDay - 1)  // For Monday start
+          : currentDay;  // For Sunday start
+        
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - daysToSubtract);
+        weekStart.setHours(0, 0, 0, 0);
+        
         filtered = filtered.filter(record => 
-          new Date(record.date) >= weekAgo
+          new Date(record.date) >= weekStart
         );
         break;
+      }
       case 'month':
         const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
         filtered = filtered.filter(record => 
@@ -165,11 +192,14 @@ export default function HistoryScreen() {
 
   const onRefresh = async () => {
     setIsRefreshing(true);
-    await loadRecords();
-    setIsRefreshing(false);
+    try {
+      await loadRecords();
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
-
-  const filteredRecords = useMemo(() => getFilteredRecords(), [records, selectedPeriod]);
 
   const formatDate = (date: string) => {
     try {
@@ -184,6 +214,15 @@ export default function HistoryScreen() {
       console.error('Date formatting error:', error);
       return date;
     }
+  };
+
+  const getBeverageInfo = (beverageType: string) => {
+    const beverage = beverages.find(b => b.id === beverageType) || beverages[0];
+    return {
+      icon: beverage.icon,
+      color: beverage.color,
+      name: getBeverageName(beverage)
+    };
   };
 
   return (
@@ -286,21 +325,32 @@ export default function HistoryScreen() {
                 </View>
 
                 <View style={styles.recordsList}>
-                  {dayRecord.records.map((record) => (
+                  {dayRecord.records.map((record) => {
+                    const beverageInfo = getBeverageInfo(record.beverageType);
+                    return (
                     <TouchableOpacity
                       key={record.id}
                       style={styles.recordItem}
                       onPress={() => handleDeleteRecord(dayRecord, record)}>
                       <View style={styles.recordInfo}>
-                        <MaterialCommunityIcons name="water" size={20} color="rgba(0,122,255,0.8)" />
-                        <ThemedText style={styles.recordAmount}>
-                          {i18n.t('addedAmount', { amount: record.amount })}
-                        </ThemedText>
+                        <MaterialCommunityIcons 
+                          name={beverageInfo.icon as any} 
+                          size={20} 
+                          color={beverageInfo.color} 
+                        />
+                        <View>
+                          <ThemedText style={[styles.recordAmount, { color: beverageInfo.color }]}>
+                            {i18n.t('addedAmount', { amount: record.amount })}
+                          </ThemedText>
+                          <ThemedText style={styles.beverageName}>
+                            {beverageInfo.name}
+                          </ThemedText>
+                        </View>
                         <ThemedText style={styles.recordTime}>{formatTime(record.timestamp)}</ThemedText>
                       </View>
                       <Ionicons name="trash-outline" size={20} color="rgba(255,59,48,0.8)" />
                     </TouchableOpacity>
-                  ))}
+                  )})}
                 </View>
               </ThemedView>
             </Animated.View>
@@ -393,15 +443,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
   },
   recordAmount: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#007AFF',
+  },
+  beverageName: {
+    fontSize: 13,
+    opacity: 0.6,
   },
   recordTime: {
     fontSize: 15,
     opacity: 0.6,
+    marginLeft: 'auto',
   },
   emptyState: {
     padding: 32,

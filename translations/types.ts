@@ -84,6 +84,24 @@ export type TranslationKeys = {
   averageIntake: string;
   maxIntake: string;
   minIntake: string;
+
+  // Beverage types
+  selectBeverage: string;
+  water: string;
+  tea: string;
+  coffee: string;
+  juice: string;
+
+  // Day reset time
+  dayResetTime: string;
+  setDayResetTime: string;
+  enterDayResetTime: string;
+  invalidTimeFormat: string;
+
+  // Week start day
+  weekStartDay: string;
+  monday: string;
+  sunday: string;
 };
 
 export type SupportedLanguages = 'en' | 'tr'; 

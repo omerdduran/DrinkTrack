@@ -1,5 +1,5 @@
 export default {
-  addWater: 'Su Ekle',
+  addWater: 'İçecek Ekle',
   customAmount: 'Özel Miktar',
   dailyGoal: 'Günlük Hedef',
   enterAmount: 'Miktar girin (mililitre - ml)',
@@ -85,4 +85,34 @@ export default {
   averageIntake: 'Ortalama Tüketim',
   maxIntake: 'Maksimum Tüketim',
   minIntake: 'Minimum Tüketim',
+
+  // Beverage types
+  selectBeverage: 'İçecek Seçin',
+  water: 'Su',
+  tea: 'Çay',
+  coffee: 'Kahve',
+  juice: 'Meyve Suyu',
+
+  customBeverages: 'Özel İçecekler',
+  addBeverage: 'Yeni İçecek Ekle',
+  addNewBeverage: 'Yeni İçecek Ekle',
+  beverageName: 'İçecek Adı',
+  selectIcon: 'İkon Seç',
+  selectColor: 'Renk Seç',
+  beverageNameRequired: 'Lütfen bir içecek adı girin',
+  errorAddingBeverage: 'İçecek eklenirken hata oluştu',
+  deleteBeverage: 'İçeceği Sil',
+  deleteBeverageConfirm: '{{name}} içeceğini silmek istediğinizden emin misiniz?',
+  errorDeletingBeverage: 'İçecek silinirken hata oluştu',
+
+  // Day reset time
+  dayResetTime: 'Gün Sıfırlama Saati',
+  setDayResetTime: 'Gün Sıfırlama Saatini Ayarla',
+  enterDayResetTime: 'Günün sıfırlanacağı saati girin (00:00 - 23:59)',
+  invalidTimeFormat: 'Geçersiz saat formatı. Lütfen HH:mm formatını kullanın (00:00 - 23:59)',
+
+  // Week start day
+  weekStartDay: 'Hafta Başlangıç Günü',
+  monday: 'Pazartesi',
+  sunday: 'Pazar',
 }; 

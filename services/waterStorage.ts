@@ -1,11 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import EventEmitter from 'eventemitter3';
+import { beverages, beverageEventEmitter, Beverage } from './beverageTypes';
+import { WidgetService } from './widgetService';
 
 export interface WaterRecord {
   id: string;
   amount: number;
   timestamp: number;
   note?: string;
+  beverageType: string;
 }
 
 export interface DayRecord {
@@ -29,11 +32,14 @@ interface Settings {
   useCups: boolean;
   showWeeklyStats: boolean;
   colorScheme?: 'light' | 'dark' | 'system';
+  dayResetTime: string;
+  weekStartDay: 'monday' | 'sunday';
 }
 
 interface ExportedData {
   settings: Settings;
   entries: WaterEntry[];
+  customBeverages: Beverage[];
 }
 
 const eventEmitter = new EventEmitter();
@@ -49,22 +55,28 @@ class WaterStorageService {
     reminderInterval: 2,
     useCups: false,
     showWeeklyStats: true,
+    dayResetTime: '00:00',
+    weekStartDay: 'monday',
   };
 
-  async addRecord(amount: number, note?: string): Promise<WaterRecord> {
+  async addRecord(amount: number, beverageType: string = 'water', note?: string): Promise<WaterRecord> {
+    const now = new Date();
     const record: WaterRecord = {
-      id: Date.now().toString(),
-      amount,
-      timestamp: Date.now(),
+      id: now.getTime().toString(),
+      amount: amount,
+      timestamp: now.getTime(),
       note,
+      beverageType,
     };
 
     try {
-      const history = await this.getDayRecords(new Date());
+      const history = await this.getDayRecords(now);
       history.records.push(record);
       history.totalIntake += amount;
       
       await this.saveDayRecord(history);
+      const settings = await this.getSettings();
+      await WidgetService.updateWidgetData(history.totalIntake, settings.dailyGoal);
       return record;
     } catch (error) {
       console.error('Error adding water record:', error);
@@ -83,6 +95,8 @@ class WaterStorageService {
         history.totalIntake -= record.amount;
         history.records.splice(recordIndex, 1);
         await this.saveDayRecord(history);
+        const settings = await this.getSettings();
+        await WidgetService.updateWidgetData(history.totalIntake, settings.dailyGoal);
       }
     } catch (error) {
       console.error('Error removing water record:', error);
@@ -91,16 +105,34 @@ class WaterStorageService {
   }
 
   async getDayRecords(date: Date): Promise<DayRecord> {
-    const dateStr = this.formatDate(date);
     try {
-      const stored = await AsyncStorage.getItem(`${this.STORAGE_KEY}_${dateStr}`);
       const settings = await this.getSettings();
+      const dayResetTime = settings.dayResetTime || '00:00';
+      const [hours, minutes] = dayResetTime.split(':').map(Number);
+      
+      // Create a date object for today's reset time
+      const resetTime = new Date(date);
+      resetTime.setHours(hours, minutes, 0, 0);
+      
+      // Get the current time
+      const currentTime = new Date(date);
+      currentTime.setMilliseconds(0);
+      currentTime.setSeconds(0);
+      
+      // If the current time is before today's reset time, use yesterday
+      let targetDate = new Date(date);
+      if (currentTime.getTime() <= resetTime.getTime()) {
+        targetDate.setDate(date.getDate() - 1);
+      }
+      
+      const dateStr = this.formatDate(targetDate);
+      const stored = await AsyncStorage.getItem(`${this.STORAGE_KEY}_${dateStr}`);
       
       if (stored) {
         return JSON.parse(stored);
       }
       
-      // Sadece istenen gün için yeni kayıt oluştur
+      // Create new record for the requested day
       return {
         date: dateStr,
         records: [],
@@ -115,6 +147,16 @@ class WaterStorageService {
 
   async getAllHistory(): Promise<DayRecord[]> {
     try {
+      // Get settings for day reset time
+      const settings = await this.getSettings();
+      const dayResetTime = settings.dayResetTime || '00:00';
+      const [hours, minutes] = dayResetTime.split(':').map(Number);
+
+      // Get current time and reset time
+      const now = new Date();
+      const resetTime = new Date(now);
+      resetTime.setHours(hours, minutes, 0, 0);
+
       // Get all keys from AsyncStorage that start with STORAGE_KEY
       const allKeys = await AsyncStorage.getAllKeys();
       const historyKeys = allKeys.filter(key => key.startsWith(this.STORAGE_KEY));
@@ -125,7 +167,25 @@ class WaterStorageService {
       // Parse and sort records by date (newest first)
       const history: DayRecord[] = records
         .map(([_, value]) => JSON.parse(value!))
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        .sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          return dateB.getTime() - dateA.getTime();
+        });
+
+      // If current time is before reset time, adjust the display date
+      if (now < resetTime) {
+        const yesterday = new Date(now);
+        yesterday.setDate(now.getDate() - 1);
+        const yesterdayStr = this.formatDate(yesterday);
+        const todayStr = this.formatDate(now);
+
+        // Find and adjust today's records if they exist
+        const todayIndex = history.findIndex(record => record.date === todayStr);
+        if (todayIndex !== -1) {
+          history[todayIndex].date = yesterdayStr;
+        }
+      }
 
       return history;
     } catch (error) {
@@ -163,12 +223,16 @@ class WaterStorageService {
     }
   }
 
-  async updateSettings(settings: Partial<Settings>): Promise<Settings> {
+  async updateSettings(settings: Partial<Settings>): Promise<void> {
     try {
       const currentSettings = await this.getSettings();
-      const newSettings = { ...currentSettings, ...settings };
-      await AsyncStorage.setItem(this.SETTINGS_KEY, JSON.stringify(newSettings));
-      return newSettings;
+      const updatedSettings = { ...currentSettings, ...settings };
+      await AsyncStorage.setItem(this.SETTINGS_KEY, JSON.stringify(updatedSettings));
+      
+      // Update widget data with new settings
+      const today = new Date();
+      const dayRecord = await this.getDayRecords(today);
+      await WidgetService.updateWidgetData(dayRecord.totalIntake, updatedSettings.dailyGoal);
     } catch (error) {
       console.error('Error updating settings:', error);
       throw error;
@@ -179,9 +243,13 @@ class WaterStorageService {
     try {
       const settings = await this.getSettings();
       const entries = await this.getEntries();
+      const stored = await AsyncStorage.getItem('custom_beverages');
+      const customBeverages = stored ? JSON.parse(stored) : [];
+      
       return {
         settings,
-        entries
+        entries,
+        customBeverages
       };
     } catch (error) {
       console.error('Error exporting data:', error);
@@ -199,6 +267,12 @@ class WaterStorageService {
       // Import settings
       await this.updateSettings(data.settings);
 
+      // Import custom beverages if they exist
+      if (Array.isArray(data.customBeverages)) {
+        await AsyncStorage.setItem('custom_beverages', JSON.stringify(data.customBeverages));
+        beverageEventEmitter.emit('beveragesChanged');
+      }
+
       // Clear existing records for the dates we're importing
       const dates = data.entries.map(entry => entry.date);
       for (const date of dates) {
@@ -214,7 +288,8 @@ class WaterStorageService {
             id: record.id || Date.now().toString(),
             amount: Number(record.amount) || 0,
             timestamp: Number(record.timestamp) || Date.now(),
-            note: record.note || ''
+            note: record.note || '',
+            beverageType: record.beverageType || 'water'
           })) : [],
           totalIntake: Number(entry.totalIntake) || 0,
           goal: Number(entry.goal) || data.settings.dailyGoal

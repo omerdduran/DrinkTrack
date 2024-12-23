@@ -16,7 +16,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#36B7FF"
-      }
+      },
+      "package": "com.omerdduran.DrinkTrack"
     },
     "web": {
       "bundler": "metro",

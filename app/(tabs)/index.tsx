@@ -1,8 +1,29 @@
-import { StyleSheet, Animated, View, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { StyleSheet, Animated, View, ScrollView, TouchableOpacity, Alert, RefreshControl, Modal } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useColorScheme } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
+import { Linking } from 'react-native';
+
+// Notification configuration
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'default',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    lightColor: '#007AFF',
+  });
+}
 
 import { ThemedText } from '../../components/ThemedText';
 import { ThemedView } from '../../components/ThemedView';
@@ -11,6 +32,7 @@ import { WaterStorage, DayRecord } from '../../services/waterStorage';
 import { EventEmitter } from '../../services/eventEmitter';
 import i18n from '../../services/i18n';
 import { LanguageService } from '@/services/languageService';
+import { beverages, Beverage, getBeverageName } from '../../services/beverageTypes';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -20,6 +42,8 @@ export default function HomeScreen() {
   const [todayRecords, setTodayRecords] = useState<DayRecord | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
+  const [selectedBeverage, setSelectedBeverage] = useState<Beverage>(beverages[0]);
+  const [showBeverageModal, setShowBeverageModal] = useState(false);
   const [, setRefreshKey] = useState(0);
   const [, forceUpdate] = useState({});
 
@@ -27,43 +51,25 @@ export default function HomeScreen() {
     loadTodayData();
     loadSettings();
 
-    const handleSettingsChange = async (settings: any) => {
-      if (settings.dailyGoal) {
-        setDailyGoal(settings.dailyGoal);
-        animateProgress(waterIntake / settings.dailyGoal);
-      }
+    const handleSettingsChange = () => {
+      loadTodayData();
+      loadSettings();
+      loadTodayRecords();
     };
 
     const handleWaterRecordChange = () => {
       loadTodayData();
+      loadTodayRecords();
     };
 
     EventEmitter.on('settingsChanged', handleSettingsChange);
     EventEmitter.on('waterRecordChanged', handleWaterRecordChange);
+    EventEmitter.on('dataImported', handleSettingsChange);
 
     return () => {
       EventEmitter.off('settingsChanged', handleSettingsChange);
       EventEmitter.off('waterRecordChanged', handleWaterRecordChange);
-    };
-  }, [waterIntake]);
-
-  useEffect(() => {
-    loadTodayRecords();
-    
-    const handleDataImported = () => {
-      loadTodayRecords();
-    };
-    
-    const handleSettingsChanged = () => {
-      loadTodayRecords();
-    };
-    
-    EventEmitter.on('dataImported', handleDataImported);
-    EventEmitter.on('settingsChanged', handleSettingsChanged);
-    
-    return () => {
-      EventEmitter.off('dataImported', handleDataImported);
-      EventEmitter.off('settingsChanged', handleSettingsChanged);
+      EventEmitter.off('dataImported', handleSettingsChange);
     };
   }, []);
 
@@ -80,6 +86,47 @@ export default function HomeScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    requestNotificationPermission();
+  }, []);
+
+  const requestNotificationPermission = async () => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        Alert.alert(
+          i18n.t('permissionRequired'),
+          i18n.t('enableNotificationsMessage'),
+          [
+            {
+              text: i18n.t('cancel'),
+              style: 'cancel'
+            },
+            {
+              text: i18n.t('settings'),
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              }
+            }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+    }
+  };
+
   const loadSettings = async () => {
     try {
       const settings = await WaterStorage.getSettings();
@@ -92,9 +139,11 @@ export default function HomeScreen() {
   const loadTodayData = async () => {
     try {
       const todayRecord = await WaterStorage.getDayRecords(new Date());
-      setWaterIntake(todayRecord.totalIntake);
       const settings = await WaterStorage.getSettings();
-      animateProgress(todayRecord.totalIntake / settings.dailyGoal);
+      setWaterIntake(todayRecord.totalIntake);
+      setDailyGoal(settings.dailyGoal);
+      const progress = todayRecord.totalIntake / settings.dailyGoal;
+      progressAnimation.setValue(progress);
     } catch (error) {
       console.error('Error loading today data:', error);
     }
@@ -110,18 +159,17 @@ export default function HomeScreen() {
   };
 
   const animateProgress = (toValue: number) => {
-    Animated.spring(progressAnimation, {
-      toValue,
-      useNativeDriver: true,
-      damping: 15,
-      stiffness: 100,
-    }).start();
+    progressAnimation.setValue(toValue);
   };
 
   const addWater = async (amount: number) => {
     try {
-      await WaterStorage.addRecord(amount);
-      loadTodayData();
+      await WaterStorage.addRecord(amount, selectedBeverage.id);
+      const todayRecord = await WaterStorage.getDayRecords(new Date());
+      const settings = await WaterStorage.getSettings();
+      setWaterIntake(todayRecord.totalIntake);
+      const progress = todayRecord.totalIntake / settings.dailyGoal;
+      animateProgress(progress);
       EventEmitter.emit('waterRecordChanged');
     } catch (error) {
       console.error('Error adding water:', error);
@@ -188,9 +236,11 @@ export default function HomeScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View style={styles.content} >
+      <View style={styles.content}>
         <View style={styles.progressSection}>
-          <WaterProgress progress={progressAnimation} />
+          <WaterProgress 
+            progress={progressAnimation}
+          />
           <ThemedText style={styles.intakeText}>
             {waterIntake} / {dailyGoal} ml
           </ThemedText>
@@ -200,27 +250,47 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.quickAddSection}>
-          <ThemedText style={styles.sectionTitle}>
-            {i18n.t('addWater')}
-          </ThemedText>
+          <View style={styles.sectionHeader}>
+            <ThemedText style={styles.sectionTitle}>
+              {i18n.t('addWater')}
+            </ThemedText>
+            <TouchableOpacity 
+              onPress={() => setShowBeverageModal(true)}
+              style={styles.beverageSelector}
+            >
+              <MaterialCommunityIcons 
+                name={selectedBeverage.icon as any} 
+                size={24} 
+                color={selectedBeverage.color} 
+              />
+              <ThemedText style={[styles.beverageName, { color: selectedBeverage.color }]}>
+                {getBeverageName(selectedBeverage)}
+              </ThemedText>
+              <MaterialCommunityIcons 
+                name="chevron-down" 
+                size={24} 
+                color={selectedBeverage.color} 
+              />
+            </TouchableOpacity>
+          </View>
           <View style={styles.buttonsGrid}>
             {[100, 200, 300, 400].map((amount) => (
               <TouchableOpacity
                 key={amount}
                 style={[
                   styles.addButton,
-                  { backgroundColor: colorScheme === 'dark' ? 'rgba(64,156,255,0.2)' : 'rgba(0,122,255,0.1)' }
+                  { backgroundColor: colorScheme === 'dark' ? `${selectedBeverage.color}33` : `${selectedBeverage.color}1A` }
                 ]}
                 onPress={() => addWater(amount)}
               >
                 <MaterialCommunityIcons 
-                  name="water" 
+                  name={selectedBeverage.icon as any}
                   size={24} 
-                  color={colorScheme === 'dark' ? '#409CFF' : '#007AFF'} 
+                  color={selectedBeverage.color}
                 />
                 <ThemedText style={[
                   styles.buttonText,
-                  { color: colorScheme === 'dark' ? '#409CFF' : '#007AFF' }
+                  { color: selectedBeverage.color }
                 ]}>
                   {amount}ml
                 </ThemedText>
@@ -233,7 +303,7 @@ export default function HomeScreen() {
           <TouchableOpacity 
             style={[
               styles.customAddButton,
-              { backgroundColor: colorScheme === 'dark' ? '#409CFF' : '#007AFF' }
+              { backgroundColor: selectedBeverage.color }
             ]}
             onPress={handleCustomAmount}
           >
@@ -243,6 +313,54 @@ export default function HomeScreen() {
             </ThemedText>
           </TouchableOpacity>
         </View>
+
+        <Modal
+          visible={showBeverageModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowBeverageModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1} 
+            onPress={() => setShowBeverageModal(false)}
+          >
+            <ThemedView style={[styles.modalContent]}>
+              <ThemedText style={styles.modalTitle}>{i18n.t('selectBeverage')}</ThemedText>
+              {beverages.map((beverage) => (
+                <TouchableOpacity
+                  key={beverage.id}
+                  style={[
+                    styles.beverageOption,
+                    { borderBottomColor: colorScheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }
+                  ]}
+                  onPress={() => {
+                    setSelectedBeverage(beverage);
+                    setShowBeverageModal(false);
+                  }}
+                >
+                  <View style={styles.beverageOptionContent}>
+                    <MaterialCommunityIcons 
+                      name={beverage.icon as any} 
+                      size={24} 
+                      color={beverage.color} 
+                    />
+                    <ThemedText style={styles.beverageOptionText}>
+                      {getBeverageName(beverage)}
+                    </ThemedText>
+                  </View>
+                  {selectedBeverage.id === beverage.id && (
+                    <MaterialCommunityIcons 
+                      name="check" 
+                      size={24} 
+                      color={beverage.color} 
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ThemedView>
+          </TouchableOpacity>
+        </Modal>
       </View>
     </ThemedView>
   );
@@ -322,5 +440,57 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  beverageSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  beverageName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  beverageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(128,128,128,0.2)',
+  },
+  beverageOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  beverageOptionText: {
+    fontSize: 17,
+    fontWeight: '500',
   },
 });
