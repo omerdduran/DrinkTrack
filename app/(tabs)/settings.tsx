@@ -18,6 +18,7 @@ import i18n from '../../services/i18n';
 import { useLanguageContext } from '../../contexts/LanguageContext';
 import { Picker } from '@react-native-picker/picker';
 import { beverages, addCustomBeverage, removeCustomBeverage, beverageEventEmitter, Beverage, getBeverageName } from '../../services/beverageTypes';
+import ChangeIcon from 'react-native-change-icon';
 
 const eventEmitter = new EventEmitter();
 
@@ -27,6 +28,12 @@ const WEEK_START_DAYS = [
   { code: 'monday', name: () => i18n.t('monday') },
   { code: 'sunday', name: () => i18n.t('sunday') },
 ] as const;
+
+const APP_ICONS = [
+  { id: 'default', name: 'Default', icon: 'water' },
+  { id: 'dark', name: 'Dark', icon: 'water-outline' },
+  { id: 'pride', name: 'Pride', icon: 'pride' },
+];
 
 export default function SettingsScreen() {
   const { setLanguage } = useLanguageContext();
@@ -43,6 +50,8 @@ export default function SettingsScreen() {
   const [selectedColor, setSelectedColor] = useState('#409CFF');
   const [customBeverages, setCustomBeverages] = useState<Beverage[]>([]);
   const [weekStartDay, setWeekStartDay] = useState<'monday' | 'sunday'>('monday');
+  const [currentAppIcon, setCurrentAppIcon] = useState<string>('default');
+  const [showIconModal, setShowIconModal] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -69,6 +78,7 @@ export default function SettingsScreen() {
       setColorScheme(settings.colorScheme || 'system');
       setDayResetTime(settings.dayResetTime);
       setWeekStartDay(settings.weekStartDay || 'monday');
+      setCurrentAppIcon(settings.appIcon || 'default');
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -481,6 +491,28 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleChangeAppIcon = async (iconId: string) => {
+    try {
+      if (Platform.OS === 'ios') {
+        await ChangeIcon.changeIcon(iconId);
+        await WaterStorage.updateSettings({ appIcon: iconId });
+        setCurrentAppIcon(iconId);
+        setShowIconModal(false);
+      } else {
+        Alert.alert(
+          i18n.t('notSupported'),
+          i18n.t('featureOnlyAvailableOniOS')
+        );
+      }
+    } catch (error) {
+      console.error('Error changing app icon:', error);
+      Alert.alert(
+        i18n.t('error'),
+        i18n.t('errorChangingIcon')
+      );
+    }
+  };
+
   const availableIcons = [
     'cup', 
     'bottle-soda', 
@@ -820,97 +852,161 @@ export default function SettingsScreen() {
             </ThemedView>
           </RNTouchableOpacity>
         </ThemedView>
-      </ThemedView>
 
-      <Modal
-        visible={showAddBeverage}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowAddBeverage(false)}>
-        <RNTouchableOpacity 
-          style={styles.modalOverlay} 
-          activeOpacity={1} 
-          onPress={() => setShowAddBeverage(false)}
-        >
-          <View style={[styles.modalContainer, { backgroundColor: 'transparent' }]}>
-            <ThemedView style={styles.modalContent}>
-              <ThemedText style={styles.modalTitle}>{i18n.t('addNewBeverage')}</ThemedText>
-              
-              <TextInput
-                style={[styles.input, {
-                  borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                  color: currentTheme === 'dark' ? '#FFFFFF' : '#000000',
-                  backgroundColor: currentTheme === 'dark' ? '#2C2C2E' : '#FFFFFF',
-                }]}
-                value={newBeverageName}
-                onChangeText={setNewBeverageName}
-                placeholder={i18n.t('beverageName')}
-                placeholderTextColor={currentTheme === 'dark' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
-              />
-
-              <ThemedText style={styles.label}>{i18n.t('selectIcon')}</ThemedText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconList}>
-                {availableIcons.map((icon) => (
-                  <RNTouchableOpacity
-                    key={icon}
-                    style={[
-                      styles.iconOption,
-                      selectedIcon === icon && styles.selectedIcon,
-                      {
-                        backgroundColor: selectedIcon === icon 
-                          ? '#007AFF'
-                          : currentTheme === 'dark' ? '#2C2C2E' : '#FFFFFF',
-                        borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.2)' : '#007AFF',
-                      }
-                    ]}
-                    onPress={() => setSelectedIcon(icon)}>
-                    <MaterialCommunityIcons 
-                      name={icon as any} 
-                      size={24} 
-                      color={selectedIcon === icon ? '#FFFFFF' : '#007AFF'} 
-                    />
-                  </RNTouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <ThemedText style={styles.label}>{i18n.t('selectColor')}</ThemedText>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorList}>
-                {availableColors.map((color) => (
-                  <RNTouchableOpacity
-                    key={color}
-                    style={[
-                      styles.colorOption,
-                      { backgroundColor: color },
-                      selectedColor === color && styles.selectedColor,
-                      {
-                        borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
-                      }
-                    ]}
-                    onPress={() => setSelectedColor(color)}
-                  />
-                ))}
-              </ScrollView>
-
-              <View style={styles.modalButtons}>
-                <RNTouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: currentTheme === 'dark' ? '#2C2C2E' : '#E5E5EA' }]}
-                  onPress={() => setShowAddBeverage(false)}>
-                  <Text style={{ color: currentTheme === 'dark' ? '#FFFFFF' : '#000000', fontSize: 16, fontWeight: '600' }}>
-                    {i18n.t('cancel')}
-                  </Text>
-                </RNTouchableOpacity>
-                <RNTouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: '#007AFF' }]}
-                  onPress={handleAddBeverage}>
-                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
-                    {i18n.t('add')}
-                  </Text>
-                </RNTouchableOpacity>
+        {Platform.OS === 'ios' && (
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>{i18n.t('appIcon')}</ThemedText>
+            <TouchableOpacity
+              style={styles.settingItem}
+              onPress={() => setShowIconModal(true)}
+            >
+              <View style={styles.settingContent}>
+                <MaterialCommunityIcons
+                  name={APP_ICONS.find(icon => icon.id === currentAppIcon)?.icon || 'water'}
+                  size={24}
+                  color="#007AFF"
+                />
+                <ThemedText style={styles.settingText}>
+                  {APP_ICONS.find(icon => icon.id === currentAppIcon)?.name || 'Default'}
+                </ThemedText>
               </View>
-            </ThemedView>
+              <MaterialCommunityIcons name="chevron-right" size={24} color="gray" />
+            </TouchableOpacity>
           </View>
-        </RNTouchableOpacity>
-      </Modal>
+        )}
+
+        <Modal
+          visible={showAddBeverage}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowAddBeverage(false)}>
+          <RNTouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1} 
+            onPress={() => setShowAddBeverage(false)}
+          >
+            <View style={[styles.modalContainer, { backgroundColor: 'transparent' }]}>
+              <ThemedView style={styles.modalContent}>
+                <ThemedText style={styles.modalTitle}>{i18n.t('addNewBeverage')}</ThemedText>
+                
+                <TextInput
+                  style={[styles.input, {
+                    borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+                    color: currentTheme === 'dark' ? '#FFFFFF' : '#000000',
+                    backgroundColor: currentTheme === 'dark' ? '#2C2C2E' : '#FFFFFF',
+                  }]}
+                  value={newBeverageName}
+                  onChangeText={setNewBeverageName}
+                  placeholder={i18n.t('beverageName')}
+                  placeholderTextColor={currentTheme === 'dark' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
+                />
+
+                <ThemedText style={styles.label}>{i18n.t('selectIcon')}</ThemedText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.iconList}>
+                  {availableIcons.map((icon) => (
+                    <RNTouchableOpacity
+                      key={icon}
+                      style={[
+                        styles.iconOption,
+                        selectedIcon === icon && styles.selectedIcon,
+                        {
+                          backgroundColor: selectedIcon === icon 
+                            ? '#007AFF'
+                            : currentTheme === 'dark' ? '#2C2C2E' : '#FFFFFF',
+                          borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.2)' : '#007AFF',
+                        }
+                      ]}
+                      onPress={() => setSelectedIcon(icon)}>
+                      <MaterialCommunityIcons 
+                        name={icon as any} 
+                        size={24} 
+                        color={selectedIcon === icon ? '#FFFFFF' : '#007AFF'} 
+                      />
+                    </RNTouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <ThemedText style={styles.label}>{i18n.t('selectColor')}</ThemedText>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorList}>
+                  {availableColors.map((color) => (
+                    <RNTouchableOpacity
+                      key={color}
+                      style={[
+                        styles.colorOption,
+                        { backgroundColor: color },
+                        selectedColor === color && styles.selectedColor,
+                        {
+                          borderColor: currentTheme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                        }
+                      ]}
+                      onPress={() => setSelectedColor(color)}
+                    />
+                  ))}
+                </ScrollView>
+
+                <View style={styles.modalButtons}>
+                  <RNTouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: currentTheme === 'dark' ? '#2C2C2E' : '#E5E5EA' }]}
+                    onPress={() => setShowAddBeverage(false)}>
+                    <Text style={{ color: currentTheme === 'dark' ? '#FFFFFF' : '#000000', fontSize: 16, fontWeight: '600' }}>
+                      {i18n.t('cancel')}
+                    </Text>
+                  </RNTouchableOpacity>
+                  <RNTouchableOpacity
+                    style={[styles.modalButton, { backgroundColor: '#007AFF' }]}
+                    onPress={handleAddBeverage}>
+                    <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
+                      {i18n.t('add')}
+                    </Text>
+                  </RNTouchableOpacity>
+                </View>
+              </ThemedView>
+            </View>
+          </RNTouchableOpacity>
+        </Modal>
+
+        <Modal
+          visible={showIconModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowIconModal(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1} 
+            onPress={() => setShowIconModal(false)}
+          >
+            <ThemedView style={styles.modalContent}>
+              <ThemedText style={styles.modalTitle}>{i18n.t('selectAppIcon')}</ThemedText>
+              {APP_ICONS.map((icon) => (
+                <TouchableOpacity
+                  key={icon.id}
+                  style={styles.iconOption}
+                  onPress={() => handleChangeAppIcon(icon.id)}
+                >
+                  <View style={styles.iconOptionContent}>
+                    <MaterialCommunityIcons 
+                      name={icon.icon} 
+                      size={24} 
+                      color="#007AFF" 
+                    />
+                    <ThemedText style={styles.iconOptionText}>
+                      {icon.name}
+                    </ThemedText>
+                  </View>
+                  {currentAppIcon === icon.id && (
+                    <MaterialCommunityIcons 
+                      name="check" 
+                      size={24} 
+                      color="#007AFF" 
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ThemedView>
+          </TouchableOpacity>
+        </Modal>
+      </ThemedView>
     </ScrollView>
   );
 }
@@ -1078,6 +1174,16 @@ const styles = StyleSheet.create({
   },
   selectedIcon: {
     backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  iconOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconOptionText: {
+    fontSize: 17,
+    fontWeight: '500',
   },
   colorList: {
     flexDirection: 'row',
@@ -1106,5 +1212,24 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  settingContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  settingText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 }); 

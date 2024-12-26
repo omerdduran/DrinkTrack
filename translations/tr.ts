@@ -115,4 +115,10 @@ export default {
   weekStartDay: 'Hafta Başlangıç Günü',
   monday: 'Pazartesi',
   sunday: 'Pazar',
+
+  appIcon: 'Uygulama İkonu',
+  selectAppIcon: 'İkon Seç',
+  notSupported: 'Desteklenmiyor',
+  featureOnlyAvailableOniOS: 'Bu özellik sadece iOS cihazlarda kullanılabilir.',
+  errorChangingIcon: 'Uygulama ikonu değiştirilirken bir hata oluştu.',
 }; 

@@ -34,6 +34,7 @@ interface Settings {
   colorScheme?: 'light' | 'dark' | 'system';
   dayResetTime: string;
   weekStartDay: 'monday' | 'sunday';
+  appIcon?: string;
 }
 
 interface ExportedData {
@@ -110,14 +111,27 @@ class WaterStorageService {
       const dayResetTime = settings.dayResetTime || '00:00';
       const [hours, minutes] = dayResetTime.split(':').map(Number);
       
-      // Create a date object for today's reset time
-      const resetTime = new Date(date);
-      resetTime.setHours(hours, minutes, 0, 0);
+      // Create a date object for today's reset time using local timezone
+      const resetTime = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        hours,
+        minutes,
+        0,
+        0
+      );
       
       // Get the current time
-      const currentTime = new Date(date);
-      currentTime.setMilliseconds(0);
-      currentTime.setSeconds(0);
+      const currentTime = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+        date.getHours(),
+        date.getMinutes(),
+        0,
+        0
+      );
       
       // If the current time is before today's reset time, use yesterday
       let targetDate = new Date(date);

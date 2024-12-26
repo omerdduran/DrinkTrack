@@ -118,4 +118,10 @@ export default {
 
   timeToHydrate: 'Time to drink water! 💧',
   stayHydratedMessage: 'Stay hydrated for better health!',
+
+  appIcon: 'App Icon',
+  selectAppIcon: 'Select App Icon',
+  notSupported: 'Not Supported',
+  featureOnlyAvailableOniOS: 'This feature is only available on iOS devices.',
+  errorChangingIcon: 'An error occurred while changing the app icon.',
 }; 
